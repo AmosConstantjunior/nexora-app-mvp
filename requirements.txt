@@ -20,3 +20,4 @@ Pillow
 python-dotenv
 
 gunicorn
+PyPDF2
