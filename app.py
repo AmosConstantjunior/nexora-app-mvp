@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from firebase_admin import credentials, auth, storage,initialize_app
+from firebase_admin import credentials, auth, storage, initialize_app
 import os, json, re, base64
 from functools import wraps
 
@@ -23,8 +23,6 @@ try:
 
     if not firebase_creds_json:
         raise EnvironmentError("La variable d'environnement FIREBASE_CREDENTIAL est absente.")
-
-    
     
     decoded_json = base64.b64decode(firebase_creds_json).decode("utf-8")
     firebase_creds = json.loads(decoded_json)
@@ -35,10 +33,28 @@ try:
 except Exception as e:
     raise RuntimeError(f"Erreur Firebase : {str(e)}")
 
+# -- Professions et Tâches --
+TACHES_PAR_PROFESSION = {
+    'content_creator': ['Rédiger des articles', 'Corriger du texte', 'Traduire du contenu'],
+    'developer': ['Générer du code', 'Corriger du code', 'Documenter du code'],
+    'marketing': ['Créer des campagnes', 'Analyser des données', 'Gérer des réseaux sociaux'],
+    'project_manager': ['Planifier un projet', 'Suivre les tâches', 'Faire des rapports'],
+    'designer': ['Créer des maquettes', 'Optimiser UX', 'Analyser des retours utilisateurs'],
+    'hr': ['Rédiger des offres', 'Filtrer les CVs', 'Planifier des entretiens'],
+    'student': ['Prendre des notes', 'Faire des résumés', 'Organiser des tâches'],
+    'other': ['Tâche personnalisée 1', 'Tâche personnalisée 2'],
+}
+
 # -- ACL --
-ALLOWED_FUNCTIONS_BY_ROLE = {
-    "basic": ["translate", "summarize", "correct"],
-    "premium": ["translate", "summarize", "correct", "web-summary", "generate", "summarize-pdf", "ocr"]
+ALLOWED_FUNCTIONS_BY_PROFESSION = {
+    'content_creator': ["summarize", "translate", "correct"],
+    'developer': ["summarize", "translate", "correct", "generate"],
+    'marketing': ["summarize", "translate", "correct"],
+    'project_manager': ["summarize", "translate", "correct"],
+    'designer': ["summarize", "translate", "correct"],
+    'hr': ["summarize", "translate", "correct"],
+    'student': ["summarize", "translate"],
+    'other': ["summarize", "translate"],
 }
 
 # -- Token Checker --
@@ -53,11 +69,14 @@ def firebase_token_required(function_slug):
                 id_token = token.split(" ")[1]
                 decoded_token = auth.verify_id_token(id_token)
 
-                if "role" not in decoded_token:
-                    return jsonify({"error": "Rôle utilisateur manquant"}), 403
+                # Récupération de la profession de l'utilisateur
+                profession = decoded_token.get('profession')
+                if not profession:
+                    return jsonify({"error": "Profession utilisateur manquante"}), 403
 
-                if function_slug not in ALLOWED_FUNCTIONS_BY_ROLE.get(decoded_token["role"], []):
-                    return jsonify({"error": "Fonction non autorisée pour ce rôle"}), 403
+                # Vérification de l'autorisation de l'utilisateur pour la fonction demandée
+                if function_slug not in ALLOWED_FUNCTIONS_BY_PROFESSION.get(profession, []):
+                    return jsonify({"error": "Fonction non autorisée pour cette profession"}), 403
 
                 return f(decoded_token, *args, **kwargs)
             except Exception as e:
@@ -152,8 +171,6 @@ def ocr(decoded_token):
         print(f"[OCR Error] {e}")
         return jsonify({"error": "Échec de l’analyse du fichier"}), 500
 
-
-
 @app.route("/ai/chat", methods=["POST"])
 @firebase_token_required("generate")
 def chat(decoded_token):
@@ -185,12 +202,14 @@ def chat(decoded_token):
         print(f"[Chat Error] {e}")
         return jsonify({"error": "Erreur lors de la génération de réponse"}), 500
 
-
 @app.route("/ai/verify", methods=["GET"])
 @firebase_token_required("summarize")
 def verify(decoded_token):
     return jsonify({
         "email": decoded_token["email"],
-        "role": decoded_token.get("role", "basic")
+        "profession": decoded_token.get("profession", "basic")
     }), 200
+
+
+
 
