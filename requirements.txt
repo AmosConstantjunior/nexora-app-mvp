@@ -1,0 +1,20 @@
+# Fichier requirements.txt
+
+# Flask & extensions
+flask
+flask-cors
+flask-limiter
+
+# LangChain & Groq
+langchain
+langchain-groq
+
+# Firebase Admin SDK
+firebase-admin
+
+# Tesseract OCR (si utilisé ailleurs dans ton code)
+pytesseract
+Pillow
+
+# Variables d'environnement
+python-dotenv
