@@ -2,7 +2,9 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from firebase_admin import credentials, auth, storage, initialize_app
+from firebase_admin import credentials, auth, storage, initialize_app,firestore
+import firebase_admin
+
 import os, json, re, base64
 from functools import wraps
 
@@ -28,8 +30,8 @@ try:
     firebase_creds = json.loads(decoded_json)
 
     cred = credentials.Certificate(firebase_creds)
-    initialize_app(cred)
-
+    firebase_admin.initialize_app(cred)
+    db = firestore.client()
 except Exception as e:
     raise RuntimeError(f"Erreur Firebase : {str(e)}")
 
@@ -68,23 +70,43 @@ def firebase_token_required(function_slug):
             try:
                 id_token = token.split(" ")[1]
                 decoded_token = auth.verify_id_token(id_token)
+                
+                # Récupérer le uid de l'utilisateur
+                uid = decoded_token.get('uid')
+                if not uid:
+                    return jsonify({"error": "UID utilisateur manquant"}), 403
+                
+                # Vérification de la profession dans Firebase Firestore
+                user_ref = db.collection('users').document(uid)
+                user_doc = user_ref.get()
 
-                # Récupération de la profession de l'utilisateur
-                profession = decoded_token.get('profession')
+                if not user_doc.exists:
+                    return jsonify({"error": "Utilisateur non trouvé"}), 404
+                
+                user_data = user_doc.to_dict()
+                profession = user_data.get('profession')
+                print(f"[Auth] Profession utilisateur : {profession}")
                 if not profession:
                     return jsonify({"error": "Profession utilisateur manquante"}), 403
 
-                # Vérification de l'autorisation de l'utilisateur pour la fonction demandée
+                # Vérification de la fonction dans les fonctions autorisées
                 if function_slug not in ALLOWED_FUNCTIONS_BY_PROFESSION.get(profession, []):
+                    
                     return jsonify({"error": "Fonction non autorisée pour cette profession"}), 403
-
+                
+                # Vérification dans la collection 'users' pour la fonction spécifique
+                allowed_functions = user_data.get('taches', [])
+                if function_slug not in allowed_functions:
+                    return jsonify({"error": "Fonction non autorisée pour cet utilisateur"}), 403
+                
+                # Si tout est bon, on continue avec la route
                 return f(decoded_token, *args, **kwargs)
+
             except Exception as e:
                 print(f"[Auth Error] {e}")
                 return jsonify({"error": "Token invalide ou expiré"}), 401
         return wrapper
     return decorator
-
 # -- Sanitize Input --
 def sanitize_text(text):
     if not isinstance(text, str): return ""
@@ -213,3 +235,6 @@ def verify(decoded_token):
 
 
 
+# -- Main --
+if __name__ == "__main__":
+    app.run(debug=True)

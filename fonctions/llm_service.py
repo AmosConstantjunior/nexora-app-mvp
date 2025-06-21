@@ -20,7 +20,7 @@ GROQ_API_KEY = base64.b64decode(encoded_key).decode()
 # -- Création de l'objet LLM sécurisé --
 llm = ChatGroq(
     api_key=GROQ_API_KEY,
-    model="mixtral-8x7b-32768"
+    model="llama-3.3-70b-versatile"
 )
 
 # Fonctions AI centralisées
