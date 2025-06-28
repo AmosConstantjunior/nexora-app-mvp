@@ -49,7 +49,7 @@ TACHES_PAR_PROFESSION = {
 
 # -- ACL --
 ALLOWED_FUNCTIONS_BY_PROFESSION = {
-    'content_creator': ["summarize", "translate", "correct"],
+    'content_creator': ["summarize", "translate", "correct","chatbot"],
     'developer': ["summarize", "translate", "correct", "generate"],
     'marketing': ["summarize", "translate", "correct"],
     'project_manager': ["summarize", "translate", "correct"],
@@ -194,7 +194,7 @@ def ocr(decoded_token):
         return jsonify({"error": "Échec de l’analyse du fichier"}), 500
 
 @app.route("/ai/chat", methods=["POST"])
-@firebase_token_required("generate")
+@firebase_token_required("chatbot")
 def chat(decoded_token):
     data = request.get_json()
     if not isinstance(data, dict) or "messages" not in data:
